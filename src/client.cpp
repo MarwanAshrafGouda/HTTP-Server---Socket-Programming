@@ -8,25 +8,27 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 
+// reading buffer size
 #define MAXDATASIZE 2000
 
 using namespace std;
 
 int main(int argc, char *argv[]) {
+    // defining all variables to be used later
     int sockFd; // socket file descriptor
     size_t bytesSent, bytesRcv; // number of bytes sent and received respectively
-    char s[INET_ADDRSTRLEN],  // to store the server address
+    char serverAddress[INET_ADDRSTRLEN],  // to store the server address in presentation form
     buffer[MAXDATASIZE]; // buffer to receive data from server
     struct addrinfo hints{}, *servInfo, *info;
     char *serverPort;
-    char defaultPort[] = "80"; // default port to use if port isn't specified
+    char defaultPort[] = "80"; // default port to use if port isn't specified in argv[]
     fd_set readFd; // set of sockets ready to read from
     struct timeval tv{}; // timeout for select
 
-    // define client attributes
+    // set client info
     memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_family = AF_INET; // use IPv4
+    hints.ai_socktype = SOCK_STREAM; // use TCP
 
     // get server info
     switch (argc) {
@@ -37,11 +39,11 @@ int main(int argc, char *argv[]) {
             serverPort = defaultPort;
             break;
         default:
-            cerr << "Invalid number of arguments!";
+            cerr << "Invalid number of arguments!\n";
             exit(-1);
     }
     if (getaddrinfo(argv[1], serverPort, &hints, &servInfo) == -1) {
-        cerr << "Couldn't get server address info!";
+        cerr << "Failed to get server address info!\n";
         exit(-2);
     }
 
@@ -53,20 +55,20 @@ int main(int argc, char *argv[]) {
         }
         // connect to socket
         if (connect(sockFd, (sockaddr *) info->ai_addr, info->ai_addrlen)) {
-            cerr << "Couldn't connect to socket!";
+            cerr << "Couldn't connect to socket!\n";
             exit(-3);
         }
         break;
     }
-    // if none of the result were valid
+    // if none of the results were valid
     if (!info) {
-        cerr << "Failed to connect!";
+        cerr << "Failed to connect!\n";
         exit(-4);
     }
 
     // convert server address from network to presentation and display it
-    inet_ntop(info->ai_family, &((struct sockaddr_in *) info->ai_addr)->sin_addr, s, sizeof s);
-    cout << "Client connected to " << s << endl;
+    inet_ntop(info->ai_family, &((struct sockaddr_in *) info->ai_addr)->sin_addr, serverAddress, sizeof serverAddress);
+    cout << "Client connected to " << serverAddress << endl;
 
     // free the space allocated to the server info
     freeaddrinfo(servInfo);
@@ -74,7 +76,7 @@ int main(int argc, char *argv[]) {
     // send request to the server
     char msg[] = "GET / HTTP/1.1\r\n\r\n";
     if ((bytesSent = send(sockFd, &msg, strlen(msg), 0)) == -1) {
-        cerr << "Failed to send request!";
+        cerr << "Failed to send request!\n";
         exit(-5);
     }
 
@@ -85,13 +87,13 @@ int main(int argc, char *argv[]) {
     // receive response from the server and display it
     while (true) {
         if (select(sockFd + 1, &readFd, nullptr, nullptr, &tv) == -1) {
-            cerr << "Select error!";
+            cerr << "Select error!\n";
             exit(-6);
         }
         if (!FD_ISSET(sockFd, &readFd))
             break;
         if ((bytesRcv = recv(sockFd, &buffer, MAXDATASIZE - 1, 0)) == -1) {
-            cerr << "Failed to receive response!";
+            cerr << "Failed to receive response!\n";
             exit(-7);
         }
         buffer[bytesRcv] = '\0'; // null terminate the string
