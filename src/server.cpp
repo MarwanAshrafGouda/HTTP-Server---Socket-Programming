@@ -7,23 +7,11 @@
 #include <cstring>
 #include <arpa/inet.h>
 #include <unistd.h>
-
+#include "server.h"
 // define port to bind server to
 #define PORT "12345"
 // define the number of connections the server could handle at a given time
 #define BACKLOG 50
-
-using namespace std;
-
-void *handleConnection(void *ptr) {
-    int clientFd = *(int *) ptr;
-    char msg[] = "Hello Client!\n";
-    if (send(clientFd, &msg, strlen(msg), 0) == -1) {
-        cerr << "Failed to send to client!\n";
-        exit(-6);
-    }
-    return nullptr;
-}
 
 int main() {
     // define variables to be used later
@@ -96,13 +84,16 @@ int main() {
                   sizeof clAddress);
         cout << "Accepted connection from " << clAddress << endl;
 
+        // create worker thread and delegate the client to it
         pthread_t worker;
+        // allocate new memory for each new client socket to prevent racing conditions
         int *arg = static_cast<int *>(malloc(sizeof(*arg)));
         if (arg == nullptr) {
-            cerr << "Couldn't allocate memory for thread arg!" << endl;
+            cerr << "Couldn't allocate memory for new socket!" << endl;
             exit(-5);
         }
         *arg = clientFd;
+        // delegate client to worker thread
         pthread_create(&worker, nullptr, handleConnection, arg);
     }
 #pragma clang diagnostic pop
