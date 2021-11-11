@@ -16,9 +16,9 @@
 using namespace std;
 
 void *handleConnection(void *ptr) {
-    int *clientFd = (int *) ptr;
+    int clientFd = *(int *) ptr;
     char msg[] = "Hello Client!\n";
-    if (send(*clientFd, &msg, strlen(msg), 0) == -1) {
+    if (send(clientFd, &msg, strlen(msg), 0) == -1) {
         cerr << "Failed to send to client!\n";
         exit(-6);
     }
@@ -98,7 +98,7 @@ int main() {
 
         pthread_t worker;
         int *arg = static_cast<int *>(malloc(sizeof(*arg)));
-        if ( arg == nullptr ) {
+        if (arg == nullptr) {
             cerr << "Couldn't allocate memory for thread arg!" << endl;
             exit(-5);
         }
