@@ -23,12 +23,12 @@ void clientGet(int sockFd, string filename) {
     fd_set readFd; // set of sockets ready to read from
     struct timeval tv{}; // timeout for select
     char buffer[MAX_DATA_SIZE]; // buffer to receive data from server
-    bool skipResponse = false; // flag raised when the char ptr passes the response line and headers
-    regex filepathPattern("(\\/.+)*\\/(.+)"), responsePattern(R"(HTTP 404 .+)");
+    bool skipHeaders = false; // flag raised when the char ptr passes the response line and headers
+    regex filepathPattern("(\\/.+)*\\/(.+)"), responsePattern(R"(HTTP\/1.1 404 .+)");
     smatch matchPath, matchResponse; // regex match groups
     string response; // HTTP 200 OK or 404 Not Found
     char *c; // iterator over buffer
-    ofstream file; // file to write GET data into
+    ofstream getDest; // getDest to write GET data into
 
     // create GET request using filename
     string msgStr = "GET " + filename + " HTTP/1.1\r\n\r\n";
@@ -39,12 +39,11 @@ void clientGet(int sockFd, string filename) {
         cerr << "Failed to send GET request!\n";
         exit(-5);
     }
-
-    // extract filename from path, create file with same name to receive data
+    // extract filename from path, create getDest with same name to receive data
     if (regex_search(filename, matchPath, filepathPattern)) {
         filename = matchPath.str(2);
     }
-    file.open(filename);
+    getDest.open(filename);
 
     // add the current socket to the read set
     FD_SET(sockFd, &readFd);
@@ -66,31 +65,31 @@ void clientGet(int sockFd, string filename) {
             exit(-7);
         }
         buffer[bytesRcv] = '\0'; // null terminate the string
-        cout << buffer; // display the response
+        cout << buffer;
         // skip response line
         c = buffer;
-        while (!skipResponse && !(*c == '\r' && *++c == '\n' && *++c == '\r' && *++c == '\n')) {
+        while (!skipHeaders && !(*c == '\r' && *++c == '\n' && *++c == '\r' && *++c == '\n')) {
             response += *c++;
         }
-        // skip the last '\n'
-        if (!skipResponse)
-            c++;
         // break if 404 Not Found
         if (regex_search(response, matchResponse, responsePattern)) {
+            getDest.close();
             remove(filename.c_str());
             break;
         }
-        skipResponse = true;
-        // write the data to a file without response line or headers
-        file << c;
+        // skip the last '\n'
+        if (!skipHeaders)
+            c++;
+        skipHeaders = true;
+        // write the data to a getDest without response line or headers
+        getDest << c;
     }
-
-    file.close();
+    getDest.close();
 }
 
 // handle client_post command
 void clientPost(int sockFd, const string &filename) {
-    ifstream input(filename.c_str()); // file to be posted
+    ifstream postSrc(filename.c_str()); // file to be posted
     ostringstream buf; // buffer to read the file into
     string postRequest;
     size_t len, // message size
@@ -99,11 +98,12 @@ void clientPost(int sockFd, const string &filename) {
     bytesSent, // number of bytes sent in each iteration
     bytesRcv; // how many bytes received from server
     char buff[MAX_DATA_SIZE];
+
     // read the file to be posted
-    buf << input.rdbuf();
+    buf << postSrc.rdbuf();
 
     // create post request
-    postRequest = "POST " + filename + " HTTP/1.1\r\n\r\n" + buf.str() + "\r\n";
+    postRequest = "POST " + filename + " HTTP/1.1\r\n\r\n" + buf.str();
     char *msg = &postRequest[0];
 
     // make sure to send the whole message
@@ -119,11 +119,12 @@ void clientPost(int sockFd, const string &filename) {
     }
 
     // receive response from server
-    if ((bytesRcv = recv(sockFd, buff, MAX_DATA_SIZE - 1,0)) == -1) {
+    if ((bytesRcv = recv(sockFd, buff, MAX_DATA_SIZE - 1, 0)) == -1) {
         cerr << "Failed to receive response from server!\n";
         exit(-8);
     }
     buff[bytesRcv] = '\0';
     cout << buff;
 }
+
 #endif //HTTP_SERVER_SOCKET_PROGRAMMING_CLIENT_H

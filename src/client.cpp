@@ -76,10 +76,11 @@ int main(int argc, char *argv[]) {
             // returns the file-name argument
             string filename = matchCommand.str(2);
             // call the corresponding client function
-            if (command == "get")
+            if (command == "get") {
                 clientGet(sockFd, filename);
-            else if (command == "post")
+            } else if (command == "post") {
                 clientPost(sockFd, filename);
+            }
         }
     }
     input.close();
