@@ -13,7 +13,7 @@
 // define the number of connections the server could handle at a given time
 #define BACKLOG 50
 
-int main() {
+int main(int argc, char *argv[]) {
     // define variables to be used later
     int sockFd, clientFd; // socket file descriptors for listener socket and worker socket
     int yes = 1;
@@ -21,6 +21,8 @@ int main() {
     struct sockaddr_storage clientAddress{};
     socklen_t sinSize;
     char clAddress[INET_ADDRSTRLEN]; // store the client address in presentation form
+    char *port;
+    char defaultport[] = PORT;
 
     // set server info
     memset(&hints, 0, sizeof hints);
@@ -28,8 +30,14 @@ int main() {
     hints.ai_socktype = SOCK_STREAM; // use TCP
     hints.ai_flags = AI_PASSIVE; // use my IP address
 
+    if (argc == 2) {
+        port = argv[1];
+    } else if (argc == 1) {
+        port = defaultport;
+    }
+
     // get server info
-    if (getaddrinfo(nullptr, PORT, &hints, &servInfo) == -1) {
+    if (getaddrinfo(nullptr, port, &hints, &servInfo) == -1) {
         cerr << "Failed to get server address info!\n";
         exit(-1);
     }

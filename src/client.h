@@ -23,9 +23,8 @@ void clientGet(int sockFd, string filename) {
     fd_set readFd; // set of sockets ready to read from
     struct timeval tv{}; // timeout for select
     char buffer[MAX_DATA_SIZE]; // buffer to receive data from server
-    bool skipResponse = false, // flag raised when the char ptr passes the response line
-    skipHeaders = false; // flag raised when the char ptr passes the headers
-    regex filepathPattern("(\\/.+)*\\/(.+)"), responsePattern(R"(.+ 404 .+)");
+    bool skipResponse = false; // flag raised when the char ptr passes the response line and headers
+    regex filepathPattern("(\\/.+)*\\/(.+)"), responsePattern(R"(HTTP 404 .+)");
     smatch matchPath, matchResponse; // regex match groups
     string response; // HTTP 200 OK or 404 Not Found
     char *c; // iterator over buffer
@@ -70,18 +69,18 @@ void clientGet(int sockFd, string filename) {
         cout << buffer; // display the response
         // skip response line
         c = buffer;
-        while (!skipResponse && *c++ != '\n') {
-            response += *c;
+        while (!skipResponse && !(*c == '\r' && *++c == '\n' && *++c == '\r' && *++c == '\n')) {
+            response += *c++;
         }
+        // skip the last '\n'
+        if (!skipResponse)
+            c++;
         // break if 404 Not Found
         if (regex_search(response, matchResponse, responsePattern)) {
             remove(filename.c_str());
             break;
         }
         skipResponse = true;
-        // skip headers
-        while (!skipHeaders && !(*c++ == '\r' && *c++ == '\n' && *c++ == '\r' && *c++ == '\n'));
-        skipHeaders = true;
         // write the data to a file without response line or headers
         file << c;
     }
@@ -97,13 +96,14 @@ void clientPost(int sockFd, const string &filename) {
     size_t len, // message size
     total = 0, // how many bytes we've sent
     bytesLeft, // how many we have left to send
-    bytesSent; // number of bytes sent in each iteration
-
+    bytesSent, // number of bytes sent in each iteration
+    bytesRcv; // how many bytes received from server
+    char buff[MAX_DATA_SIZE];
     // read the file to be posted
     buf << input.rdbuf();
 
     // create post request
-    postRequest = "POST " + filename + " HTTP/1.1\r\n\r\n" + buf.str();
+    postRequest = "POST " + filename + " HTTP/1.1\r\n\r\n" + buf.str() + "\r\n";
     char *msg = &postRequest[0];
 
     // make sure to send the whole message
@@ -111,11 +111,19 @@ void clientPost(int sockFd, const string &filename) {
     bytesLeft = len;
     while (total < len) {
         if ((bytesSent = send(sockFd, msg + total, bytesLeft, 0)) == -1) {
-            cerr << "Failed to post the whole file!";
+            cerr << "Failed to post the whole file!\n";
             break;
         }
         total += bytesSent;
         bytesLeft -= bytesSent;
     }
+
+    // receive response from server
+    if ((bytesRcv = recv(sockFd, buff, MAX_DATA_SIZE - 1,0)) == -1) {
+        cerr << "Failed to receive response from server!\n";
+        exit(-8);
+    }
+    buff[bytesRcv] = '\0';
+    cout << buff;
 }
 #endif //HTTP_SERVER_SOCKET_PROGRAMMING_CLIENT_H
